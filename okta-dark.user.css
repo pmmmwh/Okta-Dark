@@ -9,13 +9,13 @@
 @license        MIT
 @preprocessor   default
 
-@var color    bg            "Page background"                                #15171c
-@var color    surface       "Surface (cards / rows)"                         #1d2027
-@var color    surfaceHi     "Surface hover"                                  #262a33
-@var color    border        "Borders"                                        #2e333d
+@var color    bg            "Page background"                                #191919
+@var color    surface       "Surface (cards / rows)"                         #222326
+@var color    surfaceHi     "Surface hover"                                  #2b2d31
+@var color    border        "Borders"                                        #36383d
 @var color    text          "Text"                                           #e4e7eb
 @var color    muted         "Secondary text / icons"                         #9aa3ad
-@var color    accent        "Links / accent"                                 #7aa7ff
+@var color    accent        "Links / accent"                                 #7c91ff
 @var color    logoBg        "Tile behind app logos (set alpha to 0 to hide)" #ffffff
 @var checkbox invertOrgLogo "Org logo: Flip to light (Sign-in page, Settings footer)" 1
 @var checkbox shellInvert   "Dashboard: Darken top bar & side nav (filter)"           1
