@@ -1,0 +1,1230 @@
+/* ==UserStyle==
+@name           Okta Dark
+@namespace      okta-dark.local
+@version        1.0.0
+@homepageURL    https://github.com/pmmmwh/Okta-Dark
+@updateURL      https://raw.githubusercontent.com/pmmmwh/Okta-Dark/main/okta-dark.user.css
+@description    Native dark theme for the Okta End-User Dashboard (Odyssey UI, 2025+), the Settings app and the sign-in page.
+@author         Michael Mok
+@license        MIT
+@preprocessor   default
+
+@var color    bg            "Page background"                                #15171c
+@var color    surface       "Surface (cards / rows)"                         #1d2027
+@var color    surfaceHi     "Surface hover"                                  #262a33
+@var color    border        "Borders"                                        #2e333d
+@var color    text          "Text"                                           #e4e7eb
+@var color    muted         "Secondary text / icons"                         #9aa3ad
+@var color    accent        "Links / accent"                                 #7aa7ff
+@var color    logoBg        "Tile behind app logos (set alpha to 0 to hide)" #ffffff
+@var checkbox invertOrgLogo "Org logo: Flip to light (Sign-in page, Settings footer)" 1
+@var checkbox shellInvert   "Dashboard: Darken top bar & side nav (filter)"           1
+@var checkbox truncNames    "Dashboard: Shorten long app names with …"                1
+@var checkbox notifScrim    "Notifications: Dim page behind, click outside to close"  1
+@var checkbox scrimBlur     "Popovers: Blur page behind"                              1
+@var checkbox layoutFixes   "Fix Okta layout issues"                                  1
+==/UserStyle== */
+
+/* Browser support
+     Chrome / Edge 120+   everything.
+     Firefox 121+         the theme itself.
+     Firefox 147+         also the recoloured select chevron (anchor positioning); older versions keep Okta's.
+     Firefox 151+         also "Fix Okta layout issues" (section 10), the shortened app names and click-outside-to-close for Notifications (section 9);
+                          older versions skip them and keep Okta's behaviour.
+     (121 is the floor because the shell darkening depends on :has().)
+
+   Contents
+     1. Foundations       variables, page background, selection, focus
+     2. Page flip         darkening the shadow-DOM top bar / side nav, and un-darkening content, menus and dialogs
+     3. Shadow-DOM parts  <o-drawer>, <o-accordion-panel>
+     4. Shared MUI        surfaces, menus, buttons, inputs, tables, dialogs, toasts, skeletons, icons
+     5. Dashboard         sections, app rows & tiles, search, drawers, notifications
+     6. Settings app      /account-settings/… (home, details, security, activity)
+     7. Sign-in page      Okta Sign-In Widget, incl. security-method setup
+     8. App launch        "Signing in to …" interstitial
+     9. Extras            additions Okta doesn't do: shortened names, Notifications scrim, blur (own settings)
+    10. Layout fixes      the only rules that move things (own setting)
+
+   Three tiers, each with its own promise:
+     Theme (1–8)          colours only: nothing moves and nothing behaves differently.
+     Extras (9)           nothing moves, but they add or change behaviour; each behind a setting.
+     Layout fixes (10)    change layout on purpose; behind their own setting.
+
+   "Content" below means #root > div[tabindex="-1"]:
+   the main content area of the dashboard and the Settings app (everything except the shell). */
+
+/* Okta org domains only (<org>.okta.com, .okta-emea.com, .oktapreview.com),
+   not Okta's own websites (www., help., support., developer., …) */
+@-moz-document regexp("https?://(?!(www|help|support|developer|trust|status|community|portal|regionalsupport|auth0)\\.)[^/]+\\.(okta|okta-emea|oktapreview)\\.com/.*") {
+  /* =====================================================================
+     1. FOUNDATIONS
+     ===================================================================== */
+  :root {
+    /* Okta navy #00297A as it comes out of the invert+hue-rotate flip */
+    --oktaBlue: #b3dcff;
+    /* The shell flip and its exact inverse (see section 2) */
+    --okd-flip: invert(var(--shellInvert)) hue-rotate(calc(var(--shellInvert) * 180deg))
+      contrast(calc(1 - var(--shellInvert) * 0.12));
+    --okd-unflip: contrast(calc(1 / (1 - var(--shellInvert) * 0.12))) hue-rotate(calc(var(--shellInvert) * 180deg))
+      invert(var(--shellInvert));
+    /* Shadows, with unified rules for the whole theme:
+       - Elevation stays DARK, because depth reads as shadow and a light "shadow" reads as a glow on a dark page.
+         Each one below keeps Okta's exact offsets and blur, in black at 3x Okta's opacity (originally tuned for white).
+         Okta's opaque light-grey shadows count as their equivalent black opacity (#ebebed = 8%).
+         This covers all things that lift or float: app cards, menus, dropdowns, the Notifications panel, the sign-in card.
+       - Scroll / edge hints are LIGHT: the shell's is flipped by the page darkening and can't be changed,
+         so the table's is flipped the same way to match. This covers mostly the top bar and the sign-ins table.
+       - Hairline rims are borders in --border, never extra shadows.
+       Okta's toasts have no shadow, so neither do ours. */
+    --okd-shadow-card: 0 2px 6px rgba(0, 0, 0, 0.6);
+    --okd-shadow-card-hover: 0 4px 18px rgba(0, 0, 0, 0.6);
+    --okd-shadow-card-hover-lg: 0 4px 24px rgba(0, 0, 0, 0.6);
+    --okd-shadow-menu: 0 1px 4px rgba(0, 0, 0, 0.24), 0 4px 6px rgba(0, 0, 0, 0.03), 0 5px 15px rgba(0, 0, 0, 0.15);
+    --okd-shadow-dropdown: 0 8px 24px rgba(0, 0, 0, 0.24);
+    --okd-shadow-panel:
+      1px 1px 4px rgba(0, 0, 0, 0.24), 4px 4px 10px rgba(0, 0, 0, 0.24), 8px 8px 30px rgba(0, 0, 0, 0.3);
+    /* Accent tints for Okta's pale-blue states:
+       hover/focus, pressed/"…", and the subtler table-row hover */
+    --okd-tint-hover: color-mix(in srgb, var(--accent) 14%, var(--surfaceHi));
+    --okd-tint-press: color-mix(in srgb, var(--accent) 18%, var(--surfaceHi));
+    --okd-tint-row: color-mix(in srgb, var(--accent) 8%, var(--surfaceHi));
+    /* Org logo flip (setting "Flip the org logo to light"), for the logos the theme can reach: the sign-in page and the Settings home footer.
+       The side nav's logo sits inside the shell's shadow DOM, so it always follows the page flip (section 2), i.e. it is always flipped light. */
+    --okd-logo-flip: invert(var(--invertOrgLogo)) hue-rotate(calc(var(--invertOrgLogo) * 180deg));
+    /* Scrim blur behind dialogs and the Notifications panel (setting, section 9) */
+    --okd-blur: blur(calc(var(--scrimBlur) * 3px));
+    /* Dark version of Okta's light loading shimmer */
+    --okd-shimmer: linear-gradient(
+      to right,
+      var(--surface) 4%,
+      var(--surfaceHi) 25%,
+      color-mix(in srgb, var(--surface) 60%, var(--surfaceHi)) 36%,
+      var(--surface)
+    );
+  }
+
+  /* With <html> transparent, the browser paints <body>'s background over the whole canvas (incl. overscroll),
+     and does so OUTSIDE the root filter, so the page stays dark past its end and before the shell has rendered. */
+  html {
+    background: transparent !important;
+    color-scheme: dark;
+  }
+  body {
+    background-color: var(--bg) !important;
+    color: var(--text) !important;
+  }
+
+  ::selection {
+    background: color-mix(in srgb, var(--accent) 40%, transparent);
+  }
+  :focus-visible {
+    outline-color: var(--accent) !important;
+  }
+
+  /* =====================================================================
+     2. PAGE FLIP
+     The shell (top bar + side nav) renders inside a shadow root that normal CSS can't reach, so it is darkened with a filter.
+     A filter on the shell itself would trap its dropdowns and drawer in its own stacking context (behind the content).
+     Instead, the WHOLE page is flipped at the root, and the flip is undone exactly on the content area and on pop-up layers,
+     which are then styled natively.
+       flip:    invert -> hue-rotate(180) -> contrast(.88)  (lifts pure black)
+       unflip:  contrast(1/.88) -> hue-rotate(180) -> invert (reverse order)
+     --shellInvert (1/0) turns the whole mechanism on or off.
+     ===================================================================== */
+  html:has([data-odyssey-react-web-component]) {
+    filter: var(--okd-flip) !important;
+  }
+
+  /* Undo on the content area (already a stacking context via inline z-index), and on MUI layers portalled to <body> (menus, dialogs, toasts).
+     Only the outermost layer: toasts nest a Snackbar in a Snackbar, and undoing twice would turn them light again.
+     Conditional on the shell existing (i.e. the root flip being active): on a slow load the content can render before the shell. */
+  html:has([data-odyssey-react-web-component])
+    :is(
+      #root > div[tabindex="-1"],
+      :is(.MuiModal-root, .MuiPopover-root, .MuiPopper-root, .MuiSnackbar-root):not(#root > div[tabindex="-1"] *):not(
+          :is(.MuiModal-root, .MuiPopover-root, .MuiPopper-root, .MuiSnackbar-root) *
+        )
+    ) {
+    filter: var(--okd-unflip) !important;
+  }
+
+  /* Exception: dialogs with a visible backdrop.
+     Un-flipping their whole layer would make it a "backdrop root",
+     and the backdrop's blur could then only see the (empty) layer itself, not the page.
+     So, only the dialog is un-flipped, and the backdrop is given in pre-flip colours
+     (white, which the flip turns into the 50% black of section 4). */
+  html:has([data-odyssey-react-web-component])
+    .MuiModal-root.MuiModal-root:has(> .MuiBackdrop-root:not(.MuiBackdrop-invisible)):not(
+      #root > div[tabindex="-1"] *
+    ) {
+    filter: none !important;
+    & > :not(.MuiBackdrop-root) {
+      filter: var(--okd-unflip) !important;
+    }
+    & > .MuiBackdrop-root {
+      --c: calc(255 * var(--shellInvert));
+      background-color: rgb(var(--c) var(--c) var(--c) / 0.5) !important;
+    }
+  }
+
+  /* Images in the shell's light DOM (avatar): flip back to true colours */
+  [data-odyssey-react-web-component] img {
+    filter: invert(var(--shellInvert)) hue-rotate(calc(var(--shellInvert) * 180deg)) !important;
+  }
+
+  /* Top-bar search results: rendered inside the (flipped) shell */
+  [data-odyssey-react-web-component] .search-dropdown {
+    filter: var(--okd-unflip) !important;
+  }
+  [data-odyssey-react-web-component] .search-dropdown img {
+    filter: none !important;
+  }
+
+  /* =====================================================================
+     3. SHADOW-DOM COMPONENTS
+     These paint hard-coded light colours inside their shadow roots.
+     Flip the host dark, then flip the (light-DOM) children back so the native rules below apply to them.
+     ===================================================================== */
+
+  /* Drawers: app settings ("…" on a tile), Display preferences, Recent activity */
+  o-drawer {
+    filter: invert(1) hue-rotate(180deg) contrast(0.79) !important;
+  }
+  o-drawer > * {
+    filter: contrast(calc(1 / 0.79)) hue-rotate(180deg) invert(1) !important;
+    color: var(--text) !important;
+  }
+  /* :where keeps specificity low so radio/checkbox rules still win */
+  o-drawer > * :where(*),
+  div:has(> o-drawer) {
+    border-color: var(--border) !important;
+  }
+
+  /* Accordion panels (Recent activity device drawer).
+     Side effect of the flip: the browser logo in each header (same shadow root) would be colour-shifted,
+     so a round backdrop-filter overlay flips that 24px spot back.
+     The monochrome "unknown" icon looks right flipped and is left alone. */
+  o-accordion-panel {
+    filter: invert(1) hue-rotate(180deg) !important;
+    position: relative;
+  }
+  o-accordion-panel > * {
+    filter: hue-rotate(180deg) invert(1) !important;
+  }
+  o-accordion-panel[icon]:not([icon="unknown"])::after {
+    content: "";
+    position: absolute;
+    left: 24px;
+    top: 28px;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    backdrop-filter: invert(1) hue-rotate(180deg);
+    pointer-events: none;
+  }
+
+  /* =====================================================================
+     4. SHARED MUI COMPONENTS
+     ===================================================================== */
+
+  /* Surfaces: menus, popovers, dialogs, cards */
+  .MuiPaper-root,
+  .MuiCard-root {
+    background-color: var(--surface) !important;
+    background-image: none !important;
+    color: var(--text) !important;
+    /* Okta's own (light grey) border where it has one, e.g. popovers and the sign-ins table card. */
+    border-color: var(--border) !important;
+  }
+  .MuiTypography-root:not(.MuiLink-root) {
+    color: inherit;
+  }
+  .MuiDivider-root,
+  #root > div[tabindex="-1"] hr {
+    border-color: var(--border) !important;
+  }
+
+  /* Menus and popovers (Sort, top-bar app switcher / account menu) */
+  .MuiPopover-paper {
+    box-shadow: var(--okd-shadow-menu) !important;
+  }
+  .MuiMenuItem-root {
+    color: var(--text) !important;
+  }
+  .MuiMenuItem-root:is(:hover, .Mui-focusVisible, .Mui-selected) {
+    background: var(--surfaceHi) !important;
+  }
+  .header--menu-title {
+    color: var(--muted) !important;
+  }
+  .MuiPopover-root a:not(.MuiButton-root) {
+    color: var(--accent) !important;
+  }
+
+  /* Links */
+  #root > div[tabindex="-1"] a.MuiLink-root {
+    color: var(--accent) !important;
+  }
+
+  /* Secondary buttons (Sort, Add section, Launch App, dialogs, settings pages) */
+  :is(#root > div[tabindex="-1"], [data-odyssey-react-overlay-component], .MuiModal-root, .MuiPopover-root, o-drawer)
+    .MuiButton-secondary {
+    background: var(--surface) !important;
+    color: var(--text) !important;
+    border-color: var(--border) !important;
+    &:hover {
+      background: var(--surfaceHi) !important;
+    }
+    & svg {
+      color: var(--text) !important;
+    }
+  }
+  /* Floating (text) buttons */
+  :is(#root > div[tabindex="-1"], .MuiModal-root) .MuiButton-floating {
+    color: var(--text) !important;
+    &:hover {
+      background: var(--surfaceHi) !important;
+    }
+  }
+
+  /* Text inputs and selects */
+  :is(#root > div[tabindex="-1"], [data-odyssey-react-overlay-component], .MuiModal-root) {
+    & .MuiInputBase-root {
+      background: var(--bg) !important;
+      color: var(--text) !important;
+      border-color: var(--border) !important;
+      &.Mui-focused {
+        border-color: var(--accent) !important;
+      }
+      /* Read-only / disabled: Okta greys these out */
+      &:is(.Mui-disabled, .MuiInputBase-readOnly, :has(> input[readonly])) {
+        background: var(--surfaceHi) !important;
+      }
+    }
+    & .MuiInputBase-input {
+      color: var(--text) !important;
+      -webkit-text-fill-color: var(--text) !important;
+    }
+  }
+  .MuiOutlinedInput-notchedOutline {
+    border-color: var(--border) !important;
+  }
+  .MuiFormLabel-root,
+  .MuiFormHelperText-root,
+  .MuiSelect-icon {
+    color: var(--muted) !important;
+  }
+  :is(o-drawer, .MuiModal-root) .MuiFormLabel-root {
+    color: var(--text) !important;
+  }
+
+  /* Native selects / textareas (App catalog filter etc.) */
+  #root > div[tabindex="-1"] :is(select, .ods-select, textarea) {
+    background-color: var(--bg) !important;
+    color: var(--text) !important;
+    border-color: var(--border) !important;
+    color-scheme: dark;
+  }
+  /* The chevron is a background SVG with a hard-coded #212126 fill, which a theme can't recolour.
+     So instead, we hide it and draw a matching chevron (our own) as a mask filled with --muted,
+     on an ::after of the select's parent (a select can't have one itself) anchored to the exact spot (12px from the right edge and centred).
+     anchor-scope pairs each select with its own parent's ::after.
+     Only applied on browsers that support anchor positioning (available on Chrome 125+, Firefox 147+). */
+  @supports (anchor-name: --a) {
+    #root > div[tabindex="-1"] {
+      & :has(> select.ods-select) {
+        anchor-scope: --okd-select;
+      }
+      & select.ods-select {
+        background-image: none !important;
+        anchor-name: --okd-select;
+      }
+      & :has(> select.ods-select)::after {
+        content: "";
+        position: absolute;
+        position-anchor: --okd-select;
+        top: anchor(center);
+        right: anchor(right);
+        width: 12.19px;
+        height: 12.19px;
+        translate: -12px -50%;
+        background-color: var(--muted);
+        mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2.5 5.5 8 11l5.5-5.5'/%3E%3C/svg%3E")
+          center / contain no-repeat;
+        pointer-events: none;
+      }
+    }
+  }
+  #root > div[tabindex="-1"] select option {
+    background: var(--surface);
+    color: var(--text);
+  }
+
+  /* Radios & checkboxes (Display preferences, app settings edit mode) */
+  :is(.MuiRadio-root, .MuiCheckbox-root) {
+    border-color: var(--muted) !important;
+    &:not(.Mui-checked) {
+      background-color: var(--bg) !important;
+    }
+    &.Mui-checked {
+      border-color: var(--accent) !important;
+    }
+    /* Read-only / disabled: Okta greys these out (light grey fill, paler ring) */
+    &:not(.Mui-checked):is(.Mui-disabled, :has(input[readonly], input:disabled)) {
+      background-color: var(--surfaceHi) !important;
+      border-color: var(--border) !important;
+    }
+    /* Hover only on controls that can actually be changed
+       (the app settings drawer shows read-only ones until you press Edit) */
+    &:not(.Mui-disabled, :has(input[readonly], input:disabled)):is(:hover, .MuiFormControlLabel-root:hover &) {
+      border-color: var(--accent) !important;
+    }
+    &::before {
+      border-color: inherit !important;
+    }
+  }
+
+  /* Tables (Recent activity).
+     Okta sets row backgrounds with !important, including a pale hover, so the hover needs its own rule. */
+  .MuiTable-root,
+  .MuiTableRow-root,
+  .MuiTableCell-root {
+    background-color: transparent !important;
+  }
+  .MuiTableRow-root {
+    border-color: var(--border) !important;
+  }
+  /* Okta's cell borders are !important too; the id scope makes ours win */
+  #root > div[tabindex="-1"] .MuiTableCell-root {
+    border-color: var(--border) !important;
+  }
+  .MuiTableCell-root {
+    color: var(--text) !important;
+  }
+  .MuiTableCell-head {
+    border-radius: 0 !important;
+    background-color: var(--surfaceHi) !important;
+    color: var(--muted) !important;
+  }
+  tbody .MuiTableRow-root:is(:hover, .Mui-selected) {
+    background-color: var(--okd-tint-row) !important;
+  }
+
+  /* Accordions */
+  .MuiAccordion-root {
+    background-color: transparent !important;
+    color: var(--text) !important;
+  }
+  .MuiAccordion-root::before {
+    background-color: var(--border) !important;
+  }
+  .MuiAccordionSummary-root:is(:hover, .Mui-focusVisible) {
+    background-color: var(--surfaceHi) !important;
+  }
+  .MuiAccordionSummary-expandIconWrapper,
+  .MuiAccordionSummary-expandIconWrapper svg {
+    color: var(--muted) !important;
+  }
+
+  /* Dialog backdrop (Add/Edit section, Remove security method, …).
+     Okta: a 75% near-black scrim. Here: 50% black, as the page under it is already dark.
+     (Blur: section 9. Dialogs on top of the flipped page: see the exception in section 2.) */
+  .MuiBackdrop-root:not(.MuiBackdrop-invisible) {
+    background-color: rgb(0 0 0 / 0.5) !important;
+  }
+
+  /* Toasts.
+     Okta's are a pale tint of the message colour with a border in that colour (and no shadow);
+     the dark version keeps that: a dark tint of the same colour, a deeper border, and a lighter icon.
+     The tones are Okta's success/info colours and estimates for warning/error. */
+  .MuiAlert-root {
+    --okd-tone: var(--accent);
+    background-color: color-mix(in srgb, var(--okd-tone) 18%, var(--surface)) !important;
+    border-color: color-mix(in srgb, var(--okd-tone) 75%, var(--surface)) !important;
+    color: var(--text) !important;
+    &[class*="Success"] {
+      --okd-tone: #16884a;
+    }
+    &[class*="Info"] {
+      --okd-tone: #1662dd;
+    }
+    &[class*="Warning"] {
+      --okd-tone: #c27c00;
+    }
+    &:is([class*="Error"], [class*="Danger"]) {
+      --okd-tone: #d93934;
+    }
+    & .MuiAlert-icon {
+      color: color-mix(in srgb, var(--okd-tone) 55%, #fff) !important;
+    }
+  }
+  .MuiAlert-root button {
+    color: var(--muted) !important;
+    &:hover {
+      color: var(--text) !important;
+      background: var(--surfaceHi) !important;
+    }
+  }
+
+  /* Loading skeletons.
+     Both are a light gradient animated via background-position; keep the animation, darken the gradient.
+     Dashboard: classless empty MuiBox divs in a not-yet-loaded section (loaded sections carry data-se).
+     Settings app: .shimmer. */
+  .dashboard--chiclets section:not([data-se]) > div.MuiBox-root:empty,
+  .shimmer {
+    background-color: var(--surface) !important;
+    background-image: var(--okd-shimmer) !important;
+  }
+
+  /* Monochrome UI icons with hard-coded dark fills/strokes (table icons, "unknown browser").
+     Multi-colour logos use gradients and are skipped. */
+  #root > div[tabindex="-1"] svg:not(:has([fill^="url(" i])) {
+    &[fill="#1D1D21" i],
+    :is(
+      [fill="#1D1D21" i],
+      [fill="#212126" i],
+      [fill="#46545E" i],
+      [fill="black" i],
+      [fill="#000" i],
+      [fill="#000000" i]
+    ) {
+      fill: var(--muted) !important;
+    }
+    &[stroke="#1D1D21" i],
+    :is([stroke="#1D1D21" i], [stroke="#212126" i], [stroke="black" i], [stroke="#000" i], [stroke="#000000" i]) {
+      stroke: var(--muted) !important;
+    }
+  }
+
+  /* Info banners (app settings drawer) */
+  .info-banner {
+    background: color-mix(in srgb, var(--accent) 12%, var(--surface)) !important;
+    border-color: color-mix(in srgb, var(--accent) 35%, var(--border)) !important;
+    color: var(--text) !important;
+    & * {
+      color: var(--text) !important;
+    }
+    & svg {
+      color: var(--accent) !important;
+      fill: currentColor;
+    }
+  }
+
+  /* =====================================================================
+     5. DASHBOARD
+     ===================================================================== */
+  #root > div[tabindex="-1"],
+  .MuiScopedCssBaseline-root,
+  .enduser-app,
+  .content-frame,
+  .main-container,
+  .dashboard--main,
+  .dashboard--chiclets,
+  [data-se="dashboard-section"],
+  [data-se="section-header"] {
+    background: var(--bg) !important;
+    color: var(--text) !important;
+  }
+  .dashboard--my-apps-title,
+  [data-se="section-label"],
+  #root > div[tabindex="-1"] :is(h1, h2, h3) {
+    color: var(--text) !important;
+  }
+
+  /* Section header controls */
+  :is(.section--collapse-arrow-icon, .section--expand-arrow-icon) {
+    & path {
+      fill: var(--muted) !important;
+    }
+    & circle {
+      stroke: var(--muted) !important;
+    }
+  }
+  [data-se="section-rename"] svg path {
+    fill: var(--accent) !important;
+    stroke: var(--accent) !important;
+  }
+  .section--collapsed-droppable {
+    background: transparent !important;
+    border-color: var(--border) !important;
+  }
+  /* List-view group container (white while loading) */
+  [data-se="dashboard-section"] [role="grid"] {
+    border-color: var(--border) !important;
+    background: transparent !important;
+  }
+
+  /* Recently used: divider strip below, and the empty-state box */
+  [data-se="chiclet-grid-qaa"]::after {
+    background-color: var(--surface) !important;
+  }
+  div:has(> [data-se="empty-qaa-section-banner"]) {
+    border-color: var(--border) !important;
+  }
+
+  /* App rows (list view, also used in search results) */
+  .app-row--app-list-item {
+    background: var(--surface) !important;
+    border-color: var(--border) !important;
+    color: var(--text) !important;
+    &:is(:hover, :focus-within) {
+      background: var(--surfaceHi) !important;
+    }
+  }
+  .app-row--app,
+  .app-row--app-label,
+  .app-row--app-label-content {
+    color: var(--text) !important;
+  }
+  /* Okta's row hover is pale blue #f2f5ff */
+  .app-row--app:is(:hover, :focus, :focus-visible),
+  .app-row--app-settings:is(:hover, :focus-visible) {
+    background: var(--okd-tint-hover) !important;
+    color: var(--text) !important;
+  }
+  /* Keyboard-focused search result (pale blue + 4px blue stripe) and the row whose "…" drawer is open
+     (4px blue stripe: left in list view, top in grid view): same, in the accent */
+  .app-row--app-list-item.app-row--is-focused.app-row--is-focused {
+    background: var(--okd-tint-hover) !important;
+    box-shadow: inset 4px 0 0 var(--accent) !important;
+  }
+  .app-row--app-list-item.app-row--is-selected {
+    border-left-color: var(--accent) !important;
+  }
+  .chiclet--container.is-selected::after {
+    background: var(--accent) !important;
+  }
+
+  /* App tiles (grid view) */
+  .chiclet--container,
+  [data-se="app-card-container"] {
+    background: var(--surface) !important;
+    box-shadow: var(--okd-shadow-card) !important;
+    border-radius: 6px;
+    &:hover {
+      background: var(--surfaceHi) !important;
+      box-shadow: var(--okd-shadow-card-hover) !important;
+    }
+  }
+  .chiclet--container :is(.chiclet, .chiclet--article),
+  [data-se="app-card"] {
+    background: transparent !important;
+    color: var(--text) !important;
+  }
+  [data-se="app-card-title"],
+  .chiclet--footer {
+    color: var(--text) !important;
+  }
+
+  /* "…" buttons on tiles and rows */
+  .chiclet--action-kebab,
+  .chiclet--action-kebab circle {
+    fill: var(--muted) !important;
+  }
+  .chiclet--action:is(:hover, :focus-visible),
+  [data-se="app-card-settings-button"]:is(:hover, :focus-visible) {
+    background: var(--okd-tint-press) !important;
+  }
+  .app-row--app-settings:hover .chiclet--action-kebab circle,
+  .chiclet--action:hover .chiclet--action-kebab circle,
+  [data-se="app-card-settings-button"]:hover svg circle {
+    fill: var(--text) !important;
+  }
+
+  /* App logos are often dark-on-transparent:
+     give them a light tile, drawn with background + spread shadow so the logo keeps its full size. */
+  .app-logo--image {
+    background-color: var(--logoBg) !important;
+    box-shadow: 0 0 0 3px var(--logoBg) !important;
+    border-radius: 3px !important;
+  }
+
+  /* Search results dropdown (top bar, see section 2, and App catalog).
+     Okta separates it with a pale drop shadow only (no border), which is lost on dark;
+     so we redraw the edge with an inset outline. */
+  .search-dropdown {
+    background: var(--surface) !important;
+    color: var(--text) !important;
+    box-shadow: var(--okd-shadow-dropdown) !important;
+    outline: 1px solid var(--border);
+    outline-offset: -1px;
+    & * {
+      color: var(--text);
+    }
+    & .app-row--app-list-item {
+      background: transparent !important;
+      border-color: var(--border) !important;
+      &:is(:hover, :focus-within) {
+        background: var(--surfaceHi) !important;
+      }
+    }
+  }
+  #root > div[tabindex="-1"] .search-dropdown .search--no-result {
+    color: var(--muted) !important;
+  }
+
+  /* Drawer text (app settings, Display preferences): hard-coded #212126 */
+  o-drawer {
+    & p {
+      color: var(--muted) !important;
+    }
+    & :is(h1, h2, h3, h4, label, .MuiFormControlLabel-label, svg.MuiSvgIcon-root),
+    & .MuiTypography-root:not(.MuiLink-root):not(p) {
+      color: var(--text) !important;
+    }
+  }
+
+  /* Display preferences: grid/list layout thumbnails */
+  .layout-panel--radio-group svg {
+    & :is([fill="white" i], [fill="#fff" i], [fill="#ffffff" i]) {
+      fill: var(--surface) !important;
+    }
+    & :is([fill="#f4f4f4" i], [fill="#EBEBED" i]) {
+      fill: var(--surfaceHi) !important;
+    }
+    & [stroke="#212126" i] {
+      stroke: var(--muted) !important;
+    }
+    & :is([stroke="#EBEBED" i], [stroke="#D7D7DC" i]) {
+      stroke: var(--border) !important;
+    }
+  }
+
+  /* Notifications panel.
+     Okta: a three-layer soft shadow falling down and to the right, and a border in the panel's own colour (i.e. invisible). */
+  .notifications--drawer {
+    background: var(--surface) !important;
+    color: var(--text) !important;
+    border-color: var(--surface) !important;
+    box-shadow: var(--okd-shadow-panel) !important;
+    & button {
+      background: transparent !important;
+      color: var(--text) !important;
+    }
+    & svg path[fill="#212126"] {
+      fill: var(--text) !important;
+    }
+    & svg path[stroke="#00297A"] {
+      fill: var(--surface) !important;
+      stroke: var(--muted) !important;
+    }
+  }
+  .notifications--drawer-header {
+    border-color: var(--border) !important;
+  }
+  /* Footer (dashboard + Settings home) */
+  .dashboard--footer {
+    background: transparent !important;
+    color: var(--muted) !important;
+    border-color: var(--border) !important;
+  }
+  .dashboard--footer-support-title {
+    color: var(--text) !important;
+  }
+  .footer--help-link,
+  .dashboard--footer-powered-by-okta,
+  .dashboard--footer-powered-by-okta * {
+    color: var(--muted) !important;
+  }
+  /* (not the side nav's "Privacy" link: Okta gives it the same colour as the text above it, and the shell flip already handles that) */
+  .footer--help-link a,
+  .footer-link:not(.tb--sidenav-text) {
+    color: var(--accent) !important;
+  }
+
+  /* =====================================================================
+     6. SETTINGS APP (/account-settings/…)
+     ===================================================================== */
+
+  /* Settings home */
+  .main-page--email,
+  #root > div[tabindex="-1"] [data-se$="-description"] {
+    color: var(--muted) !important;
+  }
+  /* Footer org logo: flipped like the sign-in one (setting, see section 1),
+     and "screen" blends away a baked-in white box (black after the flip) */
+  img[data-se="org-logo"] {
+    filter: var(--okd-logo-flip);
+    mix-blend-mode: screen;
+  }
+
+  /* Personal details cards */
+  [data-se="display-language-container"] > div,
+  [data-se="personal-information-content"] {
+    background-color: var(--surface) !important;
+    color: var(--text) !important;
+  }
+  [data-se="display-language-picker"],
+  [data-se="personal-information-content"] > div {
+    border-color: var(--border) !important;
+  }
+  [data-se="personal-information-content"] div:has(> .personal-information--read-only) {
+    background-color: var(--bg) !important;
+  }
+  .personal-information--read-only,
+  .personal-information--read-only * {
+    color: var(--text);
+  }
+
+  /* Security methods cards */
+  .security-password--container,
+  .enrolled-authenticator--container,
+  [class*="authenticator--container"] {
+    background-color: var(--surface) !important;
+    border-color: var(--border) !important;
+    color: var(--text) !important;
+  }
+  .security-password--container *,
+  .enrolled-authenticator--container * {
+    border-color: var(--border) !important;
+  }
+
+  /* Okta Verify logo (navy, no light purple):
+     keep Okta's colours on a white disc, matching the image versions on the sign-in pages.
+     Icons that already have their own white square (security events, below) are excluded, and only the 48x48 icon is matched,
+     so we do not accidentally change illustrations that use the same navy, like the empty "Recently used" rocket.
+     The disc is a background circle filling the box's shorter side;
+     the padding (inside a border-box) shrinks only the drawing while maintaining size. */
+  #root
+    > div[tabindex="-1"]
+    svg[viewBox="0 0 48 48"]:has([fill="#00297A" i]):not(:has([fill="#A7B5EC" i])):not(:has(rect[fill="white" i])) {
+    box-sizing: border-box;
+    padding: 3px;
+    background: radial-gradient(circle closest-side, #fff calc(100% - 0.5px), transparent 100%) border-box;
+  }
+  /* Password icon (navy dots on light purple): lighten the navy */
+  #root > div[tabindex="-1"] svg:has([fill="#A7B5EC" i]) [fill="#00297A" i] {
+    fill: var(--oktaBlue) !important;
+  }
+
+  /* Sign-ins table edges.
+     Okta marks horizontal overflow with light grey right border and faint black scroll shadows
+     (gradients on the wrapper's ::before/::after, at 7.5% opacity on the side with more to scroll).
+     Treated like the shell's own scroll shadow, which the page flip turns from dark into a faint light glow:
+     invert the gradients and let Okta's own show/hide logic run.
+     Okta's light border, when inverted, would be about the card colour, so it's simply turned off. */
+  html #root div:has(> .MuiTableContainer-root) {
+    border-inline-color: transparent;
+    &::before,
+    &::after {
+      filter: invert(1);
+    }
+  }
+
+  /* Recent activity: sign-ins table text */
+  .recent-sign-in--device-expand-button {
+    color: var(--accent) !important;
+  }
+  [class*="recent-sign-in--footer"] {
+    color: var(--muted) !important;
+  }
+
+  /* Recent activity: Report dialog (from a sign-in row or an event drawer).
+     The info icon's path has a hard-coded #1D1D21 fill, which is invisible on the dark dialog. */
+  .report-event-modal--info-icon path[fill]:not([fill="none"]) {
+    fill: currentColor;
+  }
+
+  /* Recent activity: security event cards */
+  .security-event-card--container {
+    background: var(--surface) !important;
+    color: var(--text) !important;
+    box-shadow: var(--okd-shadow-card) !important;
+    &:is(:hover, :focus-visible) {
+      background: var(--surfaceHi) !important;
+      /* Okta grows these a bit more than the app cards (24px vs 18px) */
+      box-shadow: var(--okd-shadow-card-hover-lg) !important;
+    }
+    & * {
+      color: var(--text);
+    }
+  }
+  .security-event-card--date {
+    color: var(--muted) !important;
+  }
+  /* Okta Verify / FastPass icon: round the white square into a disc */
+  .security-event-card--event-icon svg rect[fill="white" i] {
+    rx: 50%;
+    ry: 50%;
+  }
+
+  /* =====================================================================
+     7. SIGN-IN PAGE (Okta Sign-In Widget)
+     ===================================================================== */
+  body.auth,
+  .login-bg-image {
+    background-color: var(--bg) !important;
+  }
+
+  /* "Connecting to …" banner */
+  .applogin-background {
+    background: var(--surface) !important;
+    box-shadow: 0 1px 0 var(--border) !important;
+  }
+  .applogin-container,
+  .applogin-container :is(h1, p) {
+    color: var(--muted) !important;
+  }
+
+  /* Page footer ("Powered by Okta" / Privacy Policy) */
+  body.auth > .footer {
+    background: var(--surface) !important;
+    box-shadow: 0 -1px 0 var(--border);
+    color: var(--muted) !important;
+    & :is(a, p) {
+      color: var(--muted) !important;
+    }
+    & a:hover {
+      color: var(--text) !important;
+    }
+  }
+
+  /* "Back to Settings" (security method setup, opened from the Settings app) */
+  .back-to-settings-link-tb {
+    background: var(--surface) !important;
+    color: var(--text) !important;
+    border-color: var(--border) !important;
+    box-shadow: none !important;
+    & * {
+      color: var(--text) !important;
+    }
+    &:hover {
+      background: var(--surfaceHi) !important;
+    }
+    & img {
+      filter: invert(0.9);
+    }
+  }
+
+  #okta-sign-in {
+    color: var(--muted) !important;
+
+    /* Card */
+    &.auth-container {
+      background: var(--surface) !important;
+      border-color: var(--border) !important;
+      /* Okta: a 2px ledge in 12% light grey (= about 4% black); 3x */
+      box-shadow: 0 2px 0 rgba(0, 0, 0, 0.12) !important;
+    }
+    /* Header: a stacking context (z-index:10); its background gives the logo's "screen" blend something to blend against */
+    & .okta-sign-in-header {
+      background: var(--surface) !important;
+      border-bottom-color: var(--border) !important;
+    }
+    /* Org logo: flip it light when wanted (setting, see section 1), and blend away a baked-in white box (black after the flip) */
+    & .auth-org-logo {
+      filter: var(--okd-logo-flip);
+      mix-blend-mode: screen;
+    }
+
+    /* Text */
+    & :is(.o-form, p, .o-form-explain) {
+      color: var(--muted) !important;
+    }
+    & :is(h1, h2, h3, h4, label, .authenticator-label, .okta-form-title, .o-form-label) {
+      color: var(--text) !important;
+    }
+    & :is(a, .link) {
+      color: var(--accent) !important;
+    }
+    /* Person icon before the username:
+       Okta's is an image (content: url()) with a fixed #5E5E5E fill, which can't be recoloured.
+       Replace it with a matching icon (our own) as a mask filled with --muted inside the same 16px content box. */
+    & .identifier-container::before {
+      content: "";
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      background-color: var(--muted);
+      mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1'%3E%3Ccircle cx='8' cy='8' r='7.5'/%3E%3Ccircle cx='8' cy='6.6' r='2.6'/%3E%3Cpath d='M3.4 13.4a5 4.6 0 0 1 9.2 0'/%3E%3C/svg%3E")
+        center / contain no-repeat content-box;
+    }
+
+    /* Text fields */
+    & .o-form-input .o-form-control {
+      background: var(--bg) !important;
+      border-color: var(--border) !important;
+      &:is(.focused-input, :focus-within) {
+        border-color: var(--accent) !important;
+        box-shadow: 0 0 0 1px var(--accent) !important;
+      }
+    }
+    & input:not([type="checkbox"]):not([type="radio"]):not([type="submit"]) {
+      background: transparent !important;
+      color: var(--text) !important;
+    }
+    & input:autofill {
+      box-shadow: 0 0 0 1000px var(--bg) inset !important;
+      -webkit-text-fill-color: var(--text) !important;
+      caret-color: var(--text);
+    }
+
+    /* Checkbox: drawn with a light PNG sprite on the label; replaced with our own box (::before) and tick (::after).
+       The tick is a mask filled with --bg, so it follows the theme colours.
+       It can't be a background on ::before: Okta moves label.focus::before's background-position (for its sprite), which would shift the tick. */
+    & .custom-checkbox {
+      & label {
+        background-image: none !important;
+      }
+      & label::before {
+        content: "";
+        position: absolute;
+        left: 0;
+        /* label has 7px top padding; centre the box on the first text line */
+        top: calc(7px + 0.5lh - 8px);
+        width: 14px;
+        height: 14px;
+        border: 1px solid var(--muted);
+        border-radius: 3px;
+        background: var(--bg);
+        box-sizing: content-box;
+      }
+      & input:checked + label::before {
+        background-color: var(--accent);
+        border-color: var(--accent);
+      }
+      & input:checked + label::after {
+        content: "";
+        position: absolute;
+        /* 10px tick centred in the 16px box */
+        left: 3px;
+        top: calc(7px + 0.5lh - 5px);
+        width: 10px;
+        height: 10px;
+        background-color: var(--bg);
+        mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cpath d='M1.5 5.2l2.3 2.3 4.7-5' fill='none' stroke='%23000' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")
+          center / contain no-repeat;
+      }
+      & input:focus-visible + label::before {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+      }
+    }
+    & input[type="radio"] {
+      accent-color: var(--accent);
+    }
+
+    /* "OR" divider: the label has a white background to mask the line */
+    & .separation-line span {
+      background: var(--surface) !important;
+    }
+    & .separation-line,
+    & .separation-line::before,
+    & .separation-line::after {
+      border-color: var(--border) !important;
+    }
+
+    /* Secondary buttons (Sign in with Okta FastPass, etc.) */
+    & :is(a.button, .button:not(.button-primary)) {
+      background: var(--bg) !important;
+      border-color: var(--border) !important;
+      color: var(--text) !important;
+      box-shadow: none !important;
+      &:hover {
+        background: var(--surfaceHi) !important;
+      }
+    }
+    /* Primary button: org brand is usually near-black, so use light */
+    & :is(.button-primary, input[type="submit"]) {
+      background: var(--text) !important;
+      border-color: var(--text) !important;
+      color: var(--bg) !important;
+      box-shadow: none !important;
+      &:hover {
+        opacity: 0.88;
+      }
+    }
+
+    /* Authenticator list: soften the light icon rings */
+    & .authenticator-icon {
+      border-color: var(--border) !important;
+    }
+
+    /* Loading spinner (GIF on white): flip, then blend the black away */
+    & :is(.okta-waiting-spinner, .device-challenge-poll .spinner) {
+      filter: invert(1) hue-rotate(180deg);
+      mix-blend-mode: screen;
+    }
+
+    /* "Verifying your identity" badge under the logo.
+       The factor artwork (white disc + logo) stays as is;
+       only the white backing and the 15px ring that masks the header line get the card colour. */
+    & .auth-beacon:not(.beacon-blank) {
+      background-color: var(--surface) !important;
+      box-shadow: 0 0 0 15px var(--surface) !important;
+    }
+    /* Okta keeps a blank placeholder beacon (white, with a white 15px shadow) underneath the factor beacon;
+       its anti-aliased edges leaked out as a faint light circle. Hide it once a factor beacon is shown. */
+    & .beacon-container:has(.auth-beacon-factor) > .beacon-blank {
+      display: none !important;
+    }
+    & :is(.auth-beacon-border, .okta-sign-in-beacon-border) {
+      border-color: var(--border) !important;
+    }
+
+    /* Info / error boxes */
+    & .infobox,
+    & .o-form-error-container .okta-form-infobox-error {
+      background: var(--bg) !important;
+      color: var(--text) !important;
+    }
+  }
+
+  /* =====================================================================
+     8. APP LAUNCH ("Signing in to …" interstitial)
+     The animated logo (GIF or SVG on white) is flipped like the other Okta artwork and the black blended away;
+     blending needs an opaque backdrop in the container, hence the explicit backgrounds.
+     ===================================================================== */
+  html:has(> body.enduser-app),
+  body.enduser-app,
+  body.enduser-app #container,
+  #okta-interstitial-wrap,
+  #interstitial-content-container,
+  #okta-auth-band,
+  .okta-auth-mask-new-interstitial {
+    background-color: var(--bg) !important;
+  }
+  :is(img.new-img, svg.new-img-static) {
+    filter: invert(1) hue-rotate(180deg);
+    mix-blend-mode: screen;
+  }
+  #okta-auth-heading {
+    color: var(--text) !important;
+  }
+  body.enduser-app .okta-logo {
+    fill: var(--muted);
+  }
+
+  /* =====================================================================
+     9. EXTRAS (each behind its own setting)
+     Additions Okta doesn't do.
+     Nothing here moves anything, but each one changes what's shown or how something behaves, so it can be turned off.
+     ===================================================================== */
+
+  /* Blur behind dialogs (setting "Blur the page behind …"; the tint is in section 4) */
+  .MuiBackdrop-root:not(.MuiBackdrop-invisible) {
+    backdrop-filter: var(--okd-blur);
+  }
+
+  /* Notifications scrim (settings "Notifications panel: dim…" and "Blur…").
+     Okta's backdrop is an invisible click-catcher, so we draw a scrim under the open panel.
+     Fixed position is used so the scrim resolves against the content area,
+     and covers the page but not the top bar / side nav (to apply the blur filter).
+     It is always mounted but rendered invisible, such that we can fade both in and out.
+     pointer-events: none is used so clicks go to the layer below. */
+  .content-frame::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background-color: rgb(0 0 0 / calc(var(--notifScrim) * 0.35));
+    backdrop-filter: blur(calc(var(--notifScrim) * var(--scrimBlur) * 3px));
+    opacity: 0;
+    visibility: hidden;
+    transition:
+      opacity 0.2s ease-out,
+      visibility 0s 0.2s;
+  }
+  .content-frame:has(.notifications--drawer)::after {
+    opacity: 1;
+    visibility: visible;
+    transition: opacity 0.2s ease-out;
+  }
+  /* Click outside to close (settings "Notifications panel: dim…"; Firefox 151+).
+     The close button's ::after is stretched over the whole content area,
+     so a click anywhere on it is a click on the close button.
+     It's cut out where the panel is (Okta's panel: 27.5rem wide, 50px from the top), so the panel itself works as normal. */
+  @container style(--notifScrim: 1) {
+    .notifications--drawer-close::after {
+      content: "";
+      position: fixed;
+      inset: 0;
+      cursor: default;
+      clip-path: polygon(0 0, 100% 0, 100% 100%, 27.5rem 100%, 27.5rem 50px, 0 50px);
+    }
+  }
+
+  @container style(--truncNames: 1) {
+    /* Long app names (setting "Shorten long app names with …"):
+       Okta cuts them off and shows the full name as a tooltip
+       (grid: after 2 lines, list: at 200px; and in narrow layouts a word wider than the column is clipped sideways).
+       End the visible part with an ellipsis instead, at the same places:
+         line-clamp   ... after the last line that fits (list: 9 lines of 21px = 189px, just inside Okta's 200px)
+         text-overflow ... on any line whose word is too wide for the column */
+    [data-se="app-card-title"] {
+      display: -webkit-box !important;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      text-overflow: ellipsis;
+    }
+    .app-row--app .app-row--app-label .app-row--app-label-content {
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 9;
+      text-overflow: ellipsis;
+    }
+  }
+
+  /* =====================================================================
+     10. LAYOUT FIXES (setting: "Fix Okta layout issues")
+     Layout changes that are done on purpose, behind their own setting.
+     ===================================================================== */
+  @container style(--layoutFixes: 1) {
+    /* Settings app height: nothing gives the app's containers a definite height,
+       so the loading spinner sits at the top and the Recent activity drawer grows with its content instead of scrolling.
+       The parent of .account-settings-app has a fixed pixel height,
+       so height:100% works all the way down and the existing overflow:auto containers scroll.
+       (.content-frame without the shell class: it's dropped after in-app navigation.) */
+    .account-settings-app,
+    .content-frame,
+    .account-settings-app > .main-container {
+      height: 100%;
+    }
+
+    /* Recent activity: content + drawer are a grid;
+       pin the row to the container height and keep the drawer in view, scrolling on its own. */
+    .recent-activity--container {
+      grid-template-rows: 100%;
+      grid-template-columns: minmax(0, 1fr) auto !important;
+      & > .MuiDrawer-root {
+        position: sticky;
+        top: 0;
+        height: 100%;
+        /* Its own scrollbar would eat ~15px of the drawer's content width.
+           To maintain drawer width, we need to give the drawer that space back by taking it from the main column:
+           the content keeps Okta's width (349px + 1px border = 350px),
+           and the drawer grows by whatever the scrollbar needs (0 with overlay scrollbars). */
+        width: auto !important;
+        & > .MuiPaper-root {
+          height: 100%;
+          width: max-content !important;
+          scrollbar-gutter: stable;
+          & > * {
+            width: 349px !important;
+          }
+        }
+      }
+    }
+
+    /* Recent activity: sign-ins table.
+       Column widths are inline CSS variables (unitless px) on the <table>; !important beats inline.
+       Widen the device column for names like "Mac OS X (iPhone)",
+       and take the space from the number/button columns, so the total stays the same. */
+    [data-se="recent-sign-ins-container"] table.MuiTable-root {
+      --header-os-size: 240 !important;
+      --col-os-size: 240 !important;
+      --header-totalSignIn-size: 150 !important;
+      --col-totalSignIn-size: 150 !important;
+      --header-reportToAdmin-size: 150 !important;
+      --col-reportToAdmin-size: 150 !important;
+    }
+
+    /* Bug: with Notifications open, an invisible click-catcher covers the dashboard,
+       so the wheel scrolls the outer frame and clips the dashboard.
+       Lock the frame while the panel is open (like a modal). */
+    .content-frame:has(.notifications--drawer-container) {
+      overflow: hidden !important;
+    }
+  }
+}
