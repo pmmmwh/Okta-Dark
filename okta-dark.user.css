@@ -712,8 +712,11 @@
     & .content-with-date-row {
       background-color: var(--surface) !important;
       border-bottom-color: var(--border) !important;
-      border-left-color: var(--accent) !important;
       color: var(--text) !important;
+      /* Unread: Okta's 6px #1662dd left stripe, in our accent (like the search results' selected row) */
+      &.content-with-date-row--highlight {
+        border-left-color: var(--accent) !important;
+      }
       & * {
         color: inherit !important;
       }
@@ -1122,16 +1125,18 @@
   /* Notifications scrim (settings "Notifications panel: dim…" and "Blur…").
      Okta's backdrop is an invisible click-catcher, so we draw a scrim under the open panel.
      Fixed position is used so the scrim resolves against the content area,
-     and covers the page but not the top bar / side nav (to apply the blur filter).
+     and covers the page but not the top bar / side nav (to apply the blur filter); the top bar gets its own part below.
      It is always mounted but rendered invisible, such that we can fade both in and out.
-     pointer-events: none is used so clicks go to the layer below. */
+     pointer-events: none is used so clicks go to the click-outside catcher below. */
   .content-frame::after {
     content: "";
     position: fixed;
     inset: 0;
     z-index: 0;
     pointer-events: none;
-    background-color: rgb(0 0 0 / calc(var(--notifScrim) * 0.35));
+    /* #0f0f0f (15.3 = 255 × 6%, what the flip's contrast(.88) makes of white) so it matches the top bar part below */
+    --k: calc(15.3 * var(--shellInvert));
+    background-color: rgb(var(--k) var(--k) var(--k) / calc(var(--notifScrim) * 0.35));
     backdrop-filter: blur(calc(var(--notifScrim) * var(--scrimBlur) * 3px));
     opacity: 0;
     visibility: hidden;
@@ -1144,17 +1149,57 @@
     visibility: visible;
     transition: opacity 0.2s ease-out;
   }
+  /* The top bar part of the scrim (only applied if anchor positioning is supported).
+     The content-frame scrim can't reach the top bar as it sits above the content area (z-index 101 vs 1),
+     so we create another frame, sized from the top of the viewport down to the content's top edge,
+     and from the content's left edge (= right of the side nav) to the right.
+     pointer-events: none is used so clicks go to the click-outside catcher below. */
+  @supports (anchor-name: --a) {
+    #root > div[tabindex="-1"] {
+      anchor-name: --okd-content;
+    }
+    #root::after {
+      /* Tint provided pre-flip, as this sits under the <html> flip */
+      --c: calc(255 * var(--shellInvert));
+      content: "";
+      position: fixed;
+      position-anchor: --okd-content;
+      top: 0;
+      right: 0;
+      bottom: anchor(top);
+      left: anchor(left);
+      z-index: 102;
+      pointer-events: none;
+      background-color: rgb(var(--c) var(--c) var(--c) / calc(var(--notifScrim) * 0.35));
+      backdrop-filter: blur(calc(var(--notifScrim) * var(--scrimBlur) * 3px));
+      opacity: 0;
+      visibility: hidden;
+      transition:
+        opacity 0.2s ease-out,
+        visibility 0s 0.2s;
+    }
+    #root:has(.notifications--drawer)::after {
+      opacity: 1;
+      visibility: visible;
+      transition: opacity 0.2s ease-out;
+    }
+  }
   /* Click outside to close (settings "Notifications panel: dim…"; Firefox 151+).
-     The close button's ::after is stretched over the whole content area,
+     The close button's ::after is stretched over the whole content area and up over the top bar,
      so a click anywhere on it is a click on the close button.
-     It's cut out where the panel is (Okta's panel: 27.5rem wide, 50px from the top), so the panel itself works as normal. */
+     It's cut out where the panel is (Okta's panel: 27.5rem wide, 50px from the content's top), so the panel itself works as normal. */
   @container style(--notifScrim: 1) {
+    #root > div[tabindex="-1"]:has(.notifications--drawer) {
+      /* Ensure content area is raised above the top bar and clipping is off */
+      z-index: 103 !important;
+      overflow: visible !important;
+    }
     .notifications--drawer-close::after {
       content: "";
       position: fixed;
-      inset: 0;
+      inset: -100vh 0 0 0;
       cursor: default;
-      clip-path: polygon(0 0, 100% 0, 100% 100%, 27.5rem 100%, 27.5rem 50px, 0 50px);
+      clip-path: polygon(0 0, 100% 0, 100% 100%, 27.5rem 100%, 27.5rem calc(100vh + 50px), 0 calc(100vh + 50px));
     }
   }
 
