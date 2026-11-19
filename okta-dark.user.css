@@ -1184,6 +1184,81 @@
      Layout changes that are done on purpose, behind their own setting.
      ===================================================================== */
   @container style(--layoutFixes: 1) {
+    /* Sign-in page:
+       centre the widget between the "Connecting to" banner and the footer, and keep the banner and footer in view:
+       the page is exactly one viewport tall and only the middle scrolls. */
+    body.auth > .content {
+      display: flex !important;
+      flex-direction: column;
+      width: 100%;
+      /* one viewport minus the absolutely positioned 34px footer */
+      height: calc(100dvh - 34px);
+      box-sizing: border-box;
+      &::after {
+        display: none !important;
+      }
+      & > .applogin-banner {
+        flex: none;
+        margin-bottom: 0 !important;
+      }
+      & > #signin-container {
+        flex: 1 1 0;
+        min-height: 0;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        padding-block: 24px;
+        & > #okta-sign-in.auth-container {
+          flex: none;
+          margin: auto !important;
+        }
+      }
+    }
+    /* Sign-in from Settings ("Back to Settings" link):
+       Okta pins the link to the top-left corner, but leaves its 400px wrapper in the page, so an empty ~30px box pushes the widget off-centre;
+       and at 750px tall or less, it moves the link into that box, above the widget, with poor spacing.
+       Decide by width instead (whether the corner link can overlap the widget), the same at any height:
+         wide:   link in the corner, empty box taken out of the layout;
+         narrow: link in the box above the widget (Okta's short-window layout). */
+    body.auth > .content > .back-to-settings {
+      /* don't let the flex column squash it to its 20px min-height (the 40px link would spill over the gap) */
+      flex: none;
+      @media (min-width: 781px) {
+        height: 0;
+        min-height: 0 !important;
+        margin: 0 !important;
+        & a.back-to-settings-link-tb {
+          position: fixed !important;
+          top: 20px !important;
+          left: 20px !important;
+        }
+      }
+      @media (max-width: 780px) {
+        /* 20px from the top, the same inset as the corner link; the gap below comes from the centring */
+        margin: 20px auto 0 !important;
+        & a.back-to-settings-link-tb {
+          position: relative !important;
+          top: 0 !important;
+          left: 0 !important;
+        }
+        & span.back-to-settings-link {
+          position: relative !important;
+          top: 0 !important;
+        }
+      }
+    }
+    /* …and in the narrow layout the link scrolls together with the widget (the page scrolls, not just the middle),
+       so a scrolled widget never runs up against a link that stays put. The footer still stays in view. */
+    @media (max-width: 780px) {
+      body.auth > .content:has(> .back-to-settings) {
+        overflow-y: auto;
+        & > #signin-container {
+          flex: 1 0 auto;
+          overflow-y: visible;
+        }
+      }
+    }
+
     /* Settings app height: nothing gives the app's containers a definite height,
        so the loading spinner sits at the top and the Recent activity drawer grows with its content instead of scrolling.
        The parent of .account-settings-app has a fixed pixel height,
