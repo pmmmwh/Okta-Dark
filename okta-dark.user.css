@@ -711,10 +711,15 @@
     /* Notification items: white rows with hard-coded #212126 text and a #2F3F4A check icon */
     & .content-with-date-row {
       background-color: var(--surface) !important;
-      border-color: var(--border) !important;
+      border-bottom-color: var(--border) !important;
+      border-left-color: var(--accent) !important;
       color: var(--text) !important;
-      & * { color: inherit !important; }
-      & svg path[fill="#2F3F4A" i] { fill: var(--muted) !important; }
+      & * {
+        color: inherit !important;
+      }
+      & svg path[fill="#2F3F4A" i] {
+        fill: var(--muted) !important;
+      }
     }
   }
   .notifications--drawer-header {
