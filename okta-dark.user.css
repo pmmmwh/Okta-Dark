@@ -496,6 +496,31 @@
     }
   }
 
+  /* Empty-state illustrations ("No new notifications" bell, empty search result, "Recently used" rocket, …).
+     Okta draws them in one palette: white fills, navy #00297A lines and accents, pale-blue #F2F5FF areas,
+     and often a hard-coded pale-blue #E5EDFB offset shadow (an SVG filter on the group) that would read as a glow.
+     Matched by navy strokes or the pale blue, so the solid-navy Okta Verify / password icons (navy fills, no #F2F5FF) are left alone.
+     Lines take the muted colour, fills the surface, and the shadow is redrawn (via a CSS filter) as an accent-tinted surface. */
+  :is(#root > div[tabindex="-1"], .search-dropdown, .MuiModal-root, .MuiPopover-root)
+    svg:has([stroke="#00297A" i], [fill="#F2F5FF" i]) {
+    --okd-ill-shadow: color-mix(in srgb, var(--accent) 22%, var(--surface));
+    & :is([fill="white" i], [fill="#fff" i], [fill="#ffffff" i]) {
+      fill: var(--surface) !important;
+    }
+    & [fill="#F2F5FF" i] {
+      fill: color-mix(in srgb, var(--accent) 12%, var(--surface)) !important;
+    }
+    & :is([fill="#00297A" i], [fill="#212126" i]) {
+      fill: var(--muted) !important;
+    }
+    & [stroke="#00297A" i] {
+      stroke: var(--muted) !important;
+    }
+    & g[filter^="url(#filter" i] {
+      filter: drop-shadow(4px 4px 0 var(--okd-ill-shadow)) !important;
+    }
+  }
+
   /* Info banners (app settings drawer) */
   .info-banner {
     background: color-mix(in srgb, var(--accent) 12%, var(--surface)) !important;
@@ -704,16 +729,15 @@
     & svg path[fill="#212126"] {
       fill: var(--text) !important;
     }
-    & svg path[stroke="#00297A"] {
-      fill: var(--surface) !important;
-      stroke: var(--muted) !important;
-    }
     /* Notification items: white rows with hard-coded #212126 text and a #2F3F4A check icon */
     & .content-with-date-row {
       background-color: var(--surface) !important;
       border-bottom-color: var(--border) !important;
-      border-left-color: var(--accent) !important;
       color: var(--text) !important;
+      /* Unread: Okta's 6px #1662dd left stripe, in our accent (like the search results' selected row) */
+      &.content-with-date-row--highlight {
+        border-left-color: var(--accent) !important;
+      }
       & * {
         color: inherit !important;
       }
@@ -1122,16 +1146,18 @@
   /* Notifications scrim (settings "Notifications panel: dim…" and "Blur…").
      Okta's backdrop is an invisible click-catcher, so we draw a scrim under the open panel.
      Fixed position is used so the scrim resolves against the content area,
-     and covers the page but not the top bar / side nav (to apply the blur filter).
+     and covers the page but not the top bar / side nav (to apply the blur filter); the top bar gets its own part below.
      It is always mounted but rendered invisible, such that we can fade both in and out.
-     pointer-events: none is used so clicks go to the layer below. */
+     pointer-events: none is used so clicks go to the click-outside catcher below. */
   .content-frame::after {
     content: "";
     position: fixed;
     inset: 0;
     z-index: 0;
     pointer-events: none;
-    background-color: rgb(0 0 0 / calc(var(--notifScrim) * 0.35));
+    /* #0f0f0f (15.3 = 255 × 6%, what the flip's contrast(.88) makes of white) so it matches the top bar part below */
+    --k: calc(15.3 * var(--shellInvert));
+    background-color: rgb(var(--k) var(--k) var(--k) / calc(var(--notifScrim) * 0.35));
     backdrop-filter: blur(calc(var(--notifScrim) * var(--scrimBlur) * 3px));
     opacity: 0;
     visibility: hidden;
@@ -1144,17 +1170,57 @@
     visibility: visible;
     transition: opacity 0.2s ease-out;
   }
+  /* The top bar part of the scrim (only applied if anchor positioning is supported).
+     The content-frame scrim can't reach the top bar as it sits above the content area (z-index 101 vs 1),
+     so we create another frame, sized from the top of the viewport down to the content's top edge,
+     and from the content's left edge (= right of the side nav) to the right.
+     pointer-events: none is used so clicks go to the click-outside catcher below. */
+  @supports (anchor-name: --a) {
+    #root > div[tabindex="-1"] {
+      anchor-name: --okd-content;
+    }
+    #root::after {
+      /* Tint provided pre-flip, as this sits under the <html> flip */
+      --c: calc(255 * var(--shellInvert));
+      content: "";
+      position: fixed;
+      position-anchor: --okd-content;
+      top: 0;
+      right: 0;
+      bottom: anchor(top);
+      left: anchor(left);
+      z-index: 102;
+      pointer-events: none;
+      background-color: rgb(var(--c) var(--c) var(--c) / calc(var(--notifScrim) * 0.35));
+      backdrop-filter: blur(calc(var(--notifScrim) * var(--scrimBlur) * 3px));
+      opacity: 0;
+      visibility: hidden;
+      transition:
+        opacity 0.2s ease-out,
+        visibility 0s 0.2s;
+    }
+    #root:has(.notifications--drawer)::after {
+      opacity: 1;
+      visibility: visible;
+      transition: opacity 0.2s ease-out;
+    }
+  }
   /* Click outside to close (settings "Notifications panel: dim…"; Firefox 151+).
-     The close button's ::after is stretched over the whole content area,
+     The close button's ::after is stretched over the whole content area and up over the top bar,
      so a click anywhere on it is a click on the close button.
-     It's cut out where the panel is (Okta's panel: 27.5rem wide, 50px from the top), so the panel itself works as normal. */
+     It's cut out where the panel is (Okta's panel: 27.5rem wide, 50px from the content's top), so the panel itself works as normal. */
   @container style(--notifScrim: 1) {
+    #root > div[tabindex="-1"]:has(.notifications--drawer) {
+      /* Ensure content area is raised above the top bar and clipping is off */
+      z-index: 103 !important;
+      overflow: visible !important;
+    }
     .notifications--drawer-close::after {
       content: "";
       position: fixed;
-      inset: 0;
+      inset: -100vh 0 0 0;
       cursor: default;
-      clip-path: polygon(0 0, 100% 0, 100% 100%, 27.5rem 100%, 27.5rem 50px, 0 50px);
+      clip-path: polygon(0 0, 100% 0, 100% 100%, 27.5rem 100%, 27.5rem calc(100vh + 50px), 0 calc(100vh + 50px));
     }
   }
 
@@ -1184,6 +1250,81 @@
      Layout changes that are done on purpose, behind their own setting.
      ===================================================================== */
   @container style(--layoutFixes: 1) {
+    /* Sign-in page:
+       centre the widget between the "Connecting to" banner and the footer, and keep the banner and footer in view:
+       the page is exactly one viewport tall and only the middle scrolls. */
+    body.auth > .content {
+      display: flex !important;
+      flex-direction: column;
+      width: 100%;
+      /* one viewport minus the absolutely positioned 34px footer */
+      height: calc(100dvh - 34px);
+      box-sizing: border-box;
+      &::after {
+        display: none !important;
+      }
+      & > .applogin-banner {
+        flex: none;
+        margin-bottom: 0 !important;
+      }
+      & > #signin-container {
+        flex: 1 1 0;
+        min-height: 0;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        padding-block: 24px;
+        & > #okta-sign-in.auth-container {
+          flex: none;
+          margin: auto !important;
+        }
+      }
+    }
+    /* Sign-in from Settings ("Back to Settings" link):
+       Okta pins the link to the top-left corner, but leaves its 400px wrapper in the page, so an empty ~30px box pushes the widget off-centre;
+       and at 750px tall or less, it moves the link into that box, above the widget, with poor spacing.
+       Decide by width instead (whether the corner link can overlap the widget), the same at any height:
+         wide:   link in the corner, empty box taken out of the layout;
+         narrow: link in the box above the widget (Okta's short-window layout). */
+    body.auth > .content > .back-to-settings {
+      /* don't let the flex column squash it to its 20px min-height (the 40px link would spill over the gap) */
+      flex: none;
+      @media (min-width: 781px) {
+        height: 0;
+        min-height: 0 !important;
+        margin: 0 !important;
+        & a.back-to-settings-link-tb {
+          position: fixed !important;
+          top: 20px !important;
+          left: 20px !important;
+        }
+      }
+      @media (max-width: 780px) {
+        /* 20px from the top, the same inset as the corner link; the gap below comes from the centring */
+        margin: 20px auto 0 !important;
+        & a.back-to-settings-link-tb {
+          position: relative !important;
+          top: 0 !important;
+          left: 0 !important;
+        }
+        & span.back-to-settings-link {
+          position: relative !important;
+          top: 0 !important;
+        }
+      }
+    }
+    /* …and in the narrow layout the link scrolls together with the widget (the page scrolls, not just the middle),
+       so a scrolled widget never runs up against a link that stays put. The footer still stays in view. */
+    @media (max-width: 780px) {
+      body.auth > .content:has(> .back-to-settings) {
+        overflow-y: auto;
+        & > #signin-container {
+          flex: 1 0 auto;
+          overflow-y: visible;
+        }
+      }
+    }
+
     /* Settings app height: nothing gives the app's containers a definite height,
        so the loading spinner sits at the top and the Recent activity drawer grows with its content instead of scrolling.
        The parent of .account-settings-app has a fixed pixel height,
