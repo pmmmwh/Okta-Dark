@@ -496,6 +496,31 @@
     }
   }
 
+  /* Empty-state illustrations ("No new notifications" bell, empty search result, "Recently used" rocket, …).
+     Okta draws them in one palette: white fills, navy #00297A lines and accents, pale-blue #F2F5FF areas,
+     and often a hard-coded pale-blue #E5EDFB offset shadow (an SVG filter on the group) that would read as a glow.
+     Matched by navy strokes or the pale blue, so the solid-navy Okta Verify / password icons (navy fills, no #F2F5FF) are left alone.
+     Lines take the muted colour, fills the surface, and the shadow is redrawn (via a CSS filter) as an accent-tinted surface. */
+  :is(#root > div[tabindex="-1"], .search-dropdown, .MuiModal-root, .MuiPopover-root)
+    svg:has([stroke="#00297A" i], [fill="#F2F5FF" i]) {
+    --okd-ill-shadow: color-mix(in srgb, var(--accent) 22%, var(--surface));
+    & :is([fill="white" i], [fill="#fff" i], [fill="#ffffff" i]) {
+      fill: var(--surface) !important;
+    }
+    & [fill="#F2F5FF" i] {
+      fill: color-mix(in srgb, var(--accent) 12%, var(--surface)) !important;
+    }
+    & :is([fill="#00297A" i], [fill="#212126" i]) {
+      fill: var(--muted) !important;
+    }
+    & [stroke="#00297A" i] {
+      stroke: var(--muted) !important;
+    }
+    & g[filter^="url(#filter" i] {
+      filter: drop-shadow(4px 4px 0 var(--okd-ill-shadow)) !important;
+    }
+  }
+
   /* Info banners (app settings drawer) */
   .info-banner {
     background: color-mix(in srgb, var(--accent) 12%, var(--surface)) !important;
@@ -703,10 +728,6 @@
     }
     & svg path[fill="#212126"] {
       fill: var(--text) !important;
-    }
-    & svg path[stroke="#00297A"] {
-      fill: var(--surface) !important;
-      stroke: var(--muted) !important;
     }
     /* Notification items: white rows with hard-coded #212126 text and a #2F3F4A check icon */
     & .content-with-date-row {
