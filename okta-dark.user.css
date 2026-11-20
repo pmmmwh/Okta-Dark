@@ -298,6 +298,16 @@
       &:is(.Mui-disabled, .MuiInputBase-readOnly, :has(> input[readonly])) {
         background: var(--surfaceHi) !important;
       }
+      /* Icon buttons inside inputs (e.g. App Catalog search's clear button): MUI's default rgba(0, 0, 0, 0.54).
+         Colours are purposefully not theme-bound, as they are matched to the same button in the top-bar search,
+         which shows Okta's colours through the shell flip. */
+      & .MuiIconButton-root {
+        color: #898989 !important;
+        &:hover {
+          color: #909090 !important;
+          background: var(--surfaceHi) !important;
+        }
+      }
     }
     & .MuiInputBase-input {
       color: var(--text) !important;
@@ -1300,6 +1310,18 @@
      Layout changes that are done on purpose, behind their own setting.
      ===================================================================== */
   @container style(--layoutFixes: 1) {
+    /* Drawers (app settings, Display preferences):
+       the scroll container inside o-drawer's shadow root is overflow: scroll,
+       so empty scroll bar tracks always show (CSS can't reach it to make it auto).
+       However, scrollbar-color is inherited into the shadow root:
+       a transparent track hides the empty tracks, and a thumb still appears if there's something to scroll.
+       A layout fix, because this can make Chrome switch from overlay to classic scrollbars, which changes gutters. */
+    o-drawer {
+      /* Colour is given pre-flip due to filter;
+         #9d9d9d comes out as #686868, the browser's default dark-mode thumb used by the page */
+      scrollbar-color: #9d9d9d transparent;
+    }
+
     /* Sign-in page:
        centre the widget between the "Connecting to" banner and the footer, and keep the banner and footer in view:
        the page is exactly one viewport tall and only the middle scrolls. */
