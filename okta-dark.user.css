@@ -60,8 +60,6 @@
      1. FOUNDATIONS
      ===================================================================== */
   :root {
-    /* Okta navy #00297A as it comes out of the invert+hue-rotate flip */
-    --oktaBlue: #b3dcff;
     /* The shell flip and its exact inverse (see section 2) */
     --okd-flip: invert(var(--shellInvert)) hue-rotate(calc(var(--shellInvert) * 180deg))
       contrast(calc(1 - var(--shellInvert) * 0.12));
@@ -299,6 +297,16 @@
       /* Read-only / disabled: Okta greys these out */
       &:is(.Mui-disabled, .MuiInputBase-readOnly, :has(> input[readonly])) {
         background: var(--surfaceHi) !important;
+      }
+      /* Icon buttons inside inputs (e.g. App Catalog search's clear button): MUI's default rgba(0, 0, 0, 0.54).
+         Colours are purposefully not theme-bound, as they are matched to the same button in the top-bar search,
+         which shows Okta's colours through the shell flip. */
+      & .MuiIconButton-root {
+        color: #898989 !important;
+        &:hover {
+          color: #909090 !important;
+          background: var(--surfaceHi) !important;
+        }
       }
     }
     & .MuiInputBase-input {
@@ -816,22 +824,24 @@
     border-color: var(--border) !important;
   }
 
-  /* Okta Verify logo (navy, no light purple):
-     keep Okta's colours on a white disc, matching the image versions on the sign-in pages.
-     Icons that already have their own white square (security events, below) are excluded, and only the 48x48 icon is matched,
-     so we do not accidentally change illustrations that use the same navy, like the empty "Recently used" rocket.
-     The disc is a background circle filling the box's shorter side;
-     the padding (inside a border-box) shrinks only the drawing while maintaining size. */
+  /* Okta's Verify logo: in white, like Okta's mobile apps in dark mode.
+     Settings > Security methods draws it as a 48x48 navy-only SVG.
+     Only that size is matched, so illustrations that use the same navy (like the "Recently used" rocket) are not affected. */
   #root
     > div[tabindex="-1"]
-    svg[viewBox="0 0 48 48"]:has([fill="#00297A" i]):not(:has([fill="#A7B5EC" i])):not(:has(rect[fill="white" i])) {
-    box-sizing: border-box;
-    padding: 3px;
-    background: radial-gradient(circle closest-side, #fff calc(100% - 0.5px), transparent 100%) border-box;
+    svg[viewBox="0 0 48 48"]:has([fill="#00297A" i]):not(:has([fill="#A7B5EC" i])):not(:has(rect[fill="white" i]))
+    [fill="#00297A" i] {
+    fill: var(--text) !important;
   }
-  /* Password icon (navy dots on light purple): lighten the navy */
-  #root > div[tabindex="-1"] svg:has([fill="#A7B5EC" i]) [fill="#00297A" i] {
-    fill: var(--oktaBlue) !important;
+  /* Okta's password icon (light-purple brackets, navy dots):
+     keep its two tones, with the dots white like the Okta Verify mark and the lighter brackets muted */
+  #root > div[tabindex="-1"] svg:has([fill="#A7B5EC" i]) {
+    & [fill="#A7B5EC" i] {
+      fill: var(--muted) !important;
+    }
+    & [fill="#00297A" i] {
+      fill: var(--text) !important;
+    }
   }
 
   /* Sign-ins table edges.
@@ -879,10 +889,15 @@
   .security-event-card--date {
     color: var(--muted) !important;
   }
-  /* Okta Verify / FastPass icon: round the white square into a disc */
-  .security-event-card--event-icon svg rect[fill="white" i] {
-    rx: 50%;
-    ry: 50%;
+  /* Okta Verify logo: currently the same navy-only 48x48 SVG as on Security methods (handled there);
+     older versions sat on their own white square, which is dropped, with the logo in white (see section 6) */
+  .security-event-card--event-icon svg:has([fill="#00297A" i]) {
+    & rect[fill="white" i] {
+      fill: none !important;
+    }
+    & [fill="#00297A" i] {
+      fill: var(--text) !important;
+    }
   }
 
   /* =====================================================================
@@ -1076,6 +1091,21 @@
     & .authenticator-icon {
       border-color: var(--border) !important;
     }
+    /* … except that the white-mark filter (above) would invert the ring into a light one:
+       draw it unfiltered on the same-sized container instead (the icon keeps its 1px border, transparent) */
+    & .authenticator-icon-container:has(> :is(.mfa-okta-verify, .mfa-okta-password)) {
+      border-radius: 50%;
+      box-shadow: inset 0 0 0 1px var(--border);
+      & > .authenticator-icon {
+        border-color: transparent !important;
+      }
+    }
+    /* Okta's password icon (blue lock and dots on a pale-blue disc) as a white mark too;
+       its mid-blue needs more push than Okta Verify's navy to reach white */
+    & .authenticator-icon.mfa-okta-password {
+      filter: grayscale(1) invert(1) brightness(1.6) contrast(3);
+      mix-blend-mode: lighten;
+    }
 
     /* Loading spinner (GIF on white): flip, then blend the black away */
     & :is(.okta-waiting-spinner, .device-challenge-poll .spinner) {
@@ -1083,9 +1113,39 @@
       mix-blend-mode: lighten;
     }
 
+    /* Okta Verify logo in white.
+       The widget draws it as bitmaps: a navy disc with a transparent check (FastPass),
+       or a navy logo on a white disc with a thin grey ring (factor icons, the "Verifying" badge, the download icon).
+       Turned to grey, inverted and blended with lighten, the white disc and the check go dark and drop out against the card;
+       contrast lifts the logo to text brightness and pushes the grey ring below the card colour, so only the white mark is left. */
+    & :is(.okta-verify-authenticator, .mfa-okta-verify, .mfa-okta-verify-30, .okta-verify-download-icon) {
+      &:not(.auth-beacon) {
+        filter: grayscale(1) invert(1) contrast(1.3);
+        mix-blend-mode: lighten;
+      }
+      /* The "Verifying" badge carries the image on the element with the card-coloured backing,
+         and the 15px ring masking the header line (below), which would be inverted by the filter too.
+         Instead, hide the element's own image and draw it again, filtered, on ::before (which inherits it). */
+      &.auth-beacon {
+        background-size: 0 0 !important;
+        &::before {
+          content: "";
+          position: absolute;
+          inset: 0;
+          border-radius: inherit;
+          pointer-events: none;
+          background-image: inherit;
+          background-size: 100% auto;
+          background-position: 50% 50%;
+          background-repeat: no-repeat;
+          filter: grayscale(1) invert(1) contrast(1.3);
+          mix-blend-mode: lighten;
+        }
+      }
+    }
+
     /* "Verifying your identity" badge under the logo.
-       The factor artwork (white disc + logo) stays as is;
-       only the white backing and the 15px ring that masks the header line get the card colour. */
+       Only the white backing and the 15px ring that masks the header line get the card colour. */
     & .auth-beacon:not(.beacon-blank) {
       background-color: var(--surface) !important;
       box-shadow: 0 0 0 15px var(--surface) !important;
@@ -1250,6 +1310,18 @@
      Layout changes that are done on purpose, behind their own setting.
      ===================================================================== */
   @container style(--layoutFixes: 1) {
+    /* Drawers (app settings, Display preferences):
+       the scroll container inside o-drawer's shadow root is overflow: scroll,
+       so empty scroll bar tracks always show (CSS can't reach it to make it auto).
+       However, scrollbar-color is inherited into the shadow root:
+       a transparent track hides the empty tracks, and a thumb still appears if there's something to scroll.
+       A layout fix, because this can make Chrome switch from overlay to classic scrollbars, which changes gutters. */
+    o-drawer {
+      /* Colour is given pre-flip due to filter;
+         #9d9d9d comes out as #686868, the browser's default dark-mode thumb used by the page */
+      scrollbar-color: #9d9d9d transparent;
+    }
+
     /* Sign-in page:
        centre the widget between the "Connecting to" banner and the footer, and keep the banner and footer in view:
        the page is exactly one viewport tall and only the middle scrolls. */
