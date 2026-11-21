@@ -36,7 +36,7 @@
    Contents
      1. Foundations       variables, page background, selection, focus
      2. Page flip         darkening the shadow-DOM top bar / side nav, and un-darkening content, menus and dialogs
-     3. Shadow-DOM parts  <o-drawer>, <o-accordion-panel>
+     3. Shadow-DOM parts  <o-drawer>
      4. Shared MUI        surfaces, menus, buttons, inputs, tables, dialogs, toasts, skeletons, icons
      5. Dashboard         sections, app rows & tiles, search, drawers, notifications
      6. Settings app      /account-settings/… (home, details, security, activity)
@@ -188,7 +188,8 @@
      Flip the host dark, then flip the (light-DOM) children back so the native rules below apply to them.
      ===================================================================== */
 
-  /* Drawers: app settings ("…" on a tile), Display preferences, Recent activity */
+  /* Drawers on the dashboard: app settings ("…" on a tile), Display preferences.
+     (Settings' drawers, e.g. Recent activity's, are plain MUI drawers and are styled in section 4.) */
   o-drawer {
     filter: invert(1) hue-rotate(180deg) contrast(var(--okd-drawer-contrast)) !important;
   }
@@ -200,29 +201,6 @@
   o-drawer > * :where(*),
   div:has(> o-drawer) {
     border-color: var(--border) !important;
-  }
-
-  /* Accordion panels (Recent activity device drawer).
-     Side effect of the flip: the browser logo in each header (same shadow root) would be colour-shifted,
-     so a round backdrop-filter overlay flips that 24px spot back.
-     The monochrome "unknown" icon looks right flipped and is left alone. */
-  o-accordion-panel {
-    filter: invert(1) hue-rotate(180deg) !important;
-    position: relative;
-  }
-  o-accordion-panel > * {
-    filter: hue-rotate(180deg) invert(1) !important;
-  }
-  o-accordion-panel[icon]:not([icon="unknown"])::after {
-    content: "";
-    position: absolute;
-    left: 24px;
-    top: 28px;
-    width: 24px;
-    height: 24px;
-    border-radius: 50%;
-    backdrop-filter: invert(1) hue-rotate(180deg);
-    pointer-events: none;
   }
 
   /* =====================================================================
@@ -865,10 +843,7 @@
     }
   }
 
-  /* Recent activity: sign-ins table text */
-  .recent-sign-in--device-expand-button {
-    color: var(--accent) !important;
-  }
+  /* Recent activity: sign-ins table footer */
   [class*="recent-sign-in--footer"] {
     color: var(--muted) !important;
   }
