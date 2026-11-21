@@ -60,10 +60,14 @@
      1. FOUNDATIONS
      ===================================================================== */
   :root {
-    /* The shell flip and its exact inverse (see section 2) */
+    /* The shell flip and its exact inverse (see section 2), and the drawers' own flip (section 3).
+       Each flip ends in a contrast that softens it; colours that have to line up with a flip are worked out from these.
+       For a grey g (0–1), invert + contrast(c) gives 0.5 + (0.5 − g) × c (hue-rotate leaves greys alone). */
+    --okd-flip-contrast: calc(1 - var(--shellInvert) * 0.12);
+    --okd-drawer-contrast: 0.79;
     --okd-flip: invert(var(--shellInvert)) hue-rotate(calc(var(--shellInvert) * 180deg))
-      contrast(calc(1 - var(--shellInvert) * 0.12));
-    --okd-unflip: contrast(calc(1 / (1 - var(--shellInvert) * 0.12))) hue-rotate(calc(var(--shellInvert) * 180deg))
+      contrast(var(--okd-flip-contrast));
+    --okd-unflip: contrast(calc(1 / var(--okd-flip-contrast))) hue-rotate(calc(var(--shellInvert) * 180deg))
       invert(var(--shellInvert));
     /* Shadows, with unified rules for the whole theme:
        - Elevation stays DARK, because depth reads as shadow and a light "shadow" reads as a glow on a dark page.
@@ -186,10 +190,10 @@
 
   /* Drawers: app settings ("…" on a tile), Display preferences, Recent activity */
   o-drawer {
-    filter: invert(1) hue-rotate(180deg) contrast(0.79) !important;
+    filter: invert(1) hue-rotate(180deg) contrast(var(--okd-drawer-contrast)) !important;
   }
   o-drawer > * {
-    filter: contrast(calc(1 / 0.79)) hue-rotate(180deg) invert(1) !important;
+    filter: contrast(calc(1 / var(--okd-drawer-contrast))) hue-rotate(180deg) invert(1) !important;
     color: var(--text) !important;
   }
   /* :where keeps specificity low so radio/checkbox rules still win */
@@ -300,11 +304,14 @@
       }
       /* Icon buttons inside inputs (e.g. App Catalog search's clear button): MUI's default rgba(0, 0, 0, 0.54).
          Colours are purposefully not theme-bound, as they are matched to the same button in the top-bar search,
-         which shows Okta's colours through the shell flip. */
+         which shows Okta's colours through the shell flip:
+         54% black on white (g = 0.46; #898989), and on its #ededed hover background (g = 0.46 × 0.929; #909090). */
       & .MuiIconButton-root {
-        color: #898989 !important;
+        --g: calc(255 * (0.5 + (0.5 - 0.46) * var(--okd-flip-contrast)));
+        color: rgb(var(--g) var(--g) var(--g)) !important;
         &:hover {
-          color: #909090 !important;
+          --g: calc(255 * (0.5 + (0.5 - 0.46 * 0.929) * var(--okd-flip-contrast)));
+          color: rgb(var(--g) var(--g) var(--g)) !important;
           background: var(--surfaceHi) !important;
         }
       }
@@ -1215,8 +1222,8 @@
     inset: 0;
     z-index: 0;
     pointer-events: none;
-    /* #0f0f0f (15.3 = 255 × 6%, what the flip's contrast(.88) makes of white) so it matches the top bar part below */
-    --k: calc(15.3 * var(--shellInvert));
+    /* What the shell flip makes of white (#0f0f0f), so it matches the top bar part below */
+    --k: calc(255 * (1 - var(--okd-flip-contrast)) / 2);
     background-color: rgb(var(--k) var(--k) var(--k) / calc(var(--notifScrim) * 0.35));
     backdrop-filter: blur(calc(var(--notifScrim) * var(--scrimBlur) * 3px));
     opacity: 0;
@@ -1317,9 +1324,11 @@
        a transparent track hides the empty tracks, and a thumb still appears if there's something to scroll.
        A layout fix, because this can make Chrome switch from overlay to classic scrollbars, which changes gutters. */
     o-drawer {
-      /* Colour is given pre-flip due to filter;
-         #9d9d9d comes out as #686868, the browser's default dark-mode thumb used by the page */
-      scrollbar-color: #9d9d9d transparent;
+      /* Colour is given pre-flip due to the drawer's filter,
+         so that it comes out as #686868 (104 / 255),
+         the browser's default dark-mode thumb used by the page (#9d9d9d) */
+      --g: calc(255 * (0.5 + (0.5 - 104 / 255) / var(--okd-drawer-contrast)));
+      scrollbar-color: rgb(var(--g) var(--g) var(--g)) transparent;
     }
 
     /* Sign-in page:
