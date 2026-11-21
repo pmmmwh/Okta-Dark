@@ -924,6 +924,11 @@
   .applogin-container :is(h1, p) {
     color: var(--muted) !important;
   }
+  /* "Connecting to" icon for Okta's own Dashboard (a blue ring and grid on transparent):
+     in white like the other Okta marks (section 6); other apps' logos in this spot keep their colours */
+  .applogin-container img.logo.okta_enduser {
+    filter: brightness(0) invert(0.9);
+  }
 
   /* Page footer ("Powered by Okta" / Privacy Policy) */
   body.auth > .footer {
