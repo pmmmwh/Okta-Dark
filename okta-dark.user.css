@@ -1397,6 +1397,23 @@
       height: 100%;
     }
 
+    /* Settings pages share Recent activity's width: full width up to 1376px.
+       Okta caps Security methods at 1200px and gives each card a 48px right margin,
+       and caps Personal details' two cards at 527px, leaving half the page empty;
+       both look off next to Recent activity, especially in a narrow window.
+       (Okta sets the Personal details cards to width: 100%, which has to go for them to fill the row.) */
+    .security-settings--info,
+    div:has(> .personal-information--container) {
+      max-width: 1376px !important;
+    }
+    .security-settings--info > * {
+      margin-right: 0 !important;
+    }
+    :is(.personal-information--container, div:has(+ .personal-information--container)) > * {
+      width: auto !important;
+      max-width: none !important;
+    }
+
     /* Recent activity: content + drawer are a grid;
        pin the row to the container height and keep the drawer in view, scrolling on its own. */
     .recent-activity--container {
